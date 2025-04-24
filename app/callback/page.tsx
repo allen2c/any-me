@@ -8,6 +8,7 @@ function CallbackContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
+    const token = searchParams.get("token");
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
 
@@ -19,11 +20,14 @@ function CallbackContent() {
           errorDescription || error || "Login failed"
         )}`
       );
-    } else {
-      // Successful login via any-login, cookies should be set.
+    } else if (token) {
+      console.log("Callback successful, storing token...");
+      localStorage.setItem("accessToken", token);
       // Redirect to the home page. The home page's useEffect will fetch user info.
-      console.log("Callback successful, redirecting to home.");
       router.replace("/");
+    } else {
+      console.warn("Callback received without token or error.");
+      router.replace("/?error=Callback%20issue");
     }
   }, [searchParams, router]);
 

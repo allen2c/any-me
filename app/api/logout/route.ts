@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 const ANY_LOGIN_PROXY_URL =
   process.env.ANY_LOGIN_PROXY_URL || "http://localhost:3000"; // URL of any-login
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("accessToken")?.value;
+  // Get token from header if needed for server-side revocation
+  const authHeader = req.headers.get("Authorization");
+  const accessToken = authHeader?.split(" ")[1];
 
   try {
-    // Call any-login's logout endpoint
+    // Call any-login's logout endpoint (which might call revoke)
     if (accessToken) {
+      console.log("Forwarding logout request to any-login proxy");
       const logoutResponse = await fetch(
         `${ANY_LOGIN_PROXY_URL}/api/auth/logout`,
         {
           method: "POST",
           headers: {
-            // Forward cookies if any-login's logout needs them
-            Cookie: req.headers.get("cookie") || "",
+            // Forward token if needed by any-login's logout
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
@@ -27,39 +28,20 @@ export async function POST(req: NextRequest) {
           "Call to any-login logout endpoint failed:",
           logoutResponse.statusText
         );
-        // Still proceed to clear local cookies
+      } else {
+        console.log("any-login logout endpoint call successful.");
       }
+    } else {
+      console.warn("No access token provided for server-side logout.");
     }
   } catch (error) {
     console.error("Error calling any-login logout endpoint:", error);
-    // Still proceed to clear local cookies
   }
 
-  // Prepare response to clear cookies on the any-me domain
-  const response = NextResponse.json({ message: "Logout successful" });
+  // Prepare response - primarily for confirming client-side action
+  const response = NextResponse.json({ message: "Logout processed" });
 
-  // Instruct the browser to delete the cookies
-  response.cookies.delete("accessToken");
-  response.cookies.delete("refreshToken");
-
-  // Attempt to clear cookies set by any-login if they share a common parent domain
-  const domain = process.env.COOKIE_DOMAIN; // e.g., ".example.com"
-  if (domain) {
-    response.cookies.set({
-      name: "accessToken",
-      value: "",
-      path: "/",
-      maxAge: -1,
-      domain: domain,
-    });
-    response.cookies.set({
-      name: "refreshToken",
-      value: "",
-      path: "/",
-      maxAge: -1,
-      domain: domain,
-    });
-  }
+  // No need to delete cookies here as we are not using them for auth in any-me
 
   return response;
 }

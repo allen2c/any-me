@@ -1,12 +1,21 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 
 const ANY_LOGIN_PROXY_URL =
   process.env.ANY_LOGIN_PROXY_URL || "http://localhost:3000"; // URL of any-login
 
-export async function GET() {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("accessToken")?.value;
+export async function GET(request: NextRequest) {
+  // Read token from Authorization header
+  const authHeader = request.headers.get("Authorization");
+  const accessToken = authHeader?.split(" ")[1]; // Extract token after "Bearer "
+
+  console.log(
+    "api/me received Authorization Header:",
+    authHeader ? "Present" : "Missing"
+  );
+  console.log(
+    "api/me extracted Access Token:",
+    accessToken ? "Present" : "Missing"
+  );
 
   if (!accessToken) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -20,7 +29,6 @@ export async function GET() {
         headers: {
           // Forward the access token to the proxy endpoint
           Authorization: `Bearer ${accessToken}`,
-          // If the proxy relies on cookies, you may need to forward them carefully
         },
       }
     );
