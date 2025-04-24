@@ -10,8 +10,8 @@ export interface UserInfo {
   name?: string;
   preferred_username?: string;
   email?: string;
-  email_verified?: boolean;
   picture?: string;
+  email_verified?: boolean;
   phone_number?: string;
   phone_number_verified?: boolean;
   address?: {

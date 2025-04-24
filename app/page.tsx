@@ -1,6 +1,79 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
+import { UserInfo } from "./types/auth";
+import {
+  getToken,
+  clearToken,
+  fetchUserInfo,
+  redirectToLogin,
+  logout,
+} from "./utils/authClient";
 
 export default function Home() {
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      setIsLoading(true);
+      setError(null);
+      const token = getToken();
+
+      if (token) {
+        try {
+          console.log("Token found, fetching user info...");
+          const data = await fetchUserInfo(token);
+          setUserInfo(data);
+        } catch (err) {
+          console.error("Failed to fetch user info:", err);
+          setError(
+            err instanceof Error ? err.message : "Could not load user data."
+          );
+          // Token might be invalid/expired, clear it
+          clearToken();
+          setUserInfo(null);
+        }
+      } else {
+        console.log("No token found.");
+        setUserInfo(null);
+      }
+      setIsLoading(false);
+    };
+
+    checkAuth();
+  }, []);
+
+  const handleLogout = async () => {
+    setIsLoading(true);
+    try {
+      await logout();
+      setUserInfo(null);
+      setError(null); // Clear any previous errors on logout
+    } catch (err) {
+      console.error("Logout error:", err);
+      setError("Logout failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogin = () => {
+    redirectToLogin();
+  };
+
+  // --- Rendering Logic ---
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
@@ -12,91 +85,69 @@ export default function Home() {
           height={38}
           priority
         />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+        {error && (
+          <div className="text-red-500 p-4 border border-red-300 rounded-md mb-4">
+            {error}
+          </div>
+        )}
+
+        {userInfo ? (
+          // --- Logged In View ---
+          <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-lg shadow-md max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">User Information</h2>
+            {userInfo.picture && (
+              <Image
+                src={userInfo.picture}
+                alt="User profile"
+                width={64}
+                height={64}
+                className="rounded-full mx-auto mb-3"
+              />
+            )}
+            <p className="mb-1">
+              <strong>Username:</strong>{" "}
+              {userInfo.preferred_username || userInfo.name || "N/A"}
+            </p>
+            <p className="mb-1">
+              <strong>Email:</strong> {userInfo.email || "N/A"}
+            </p>
+            <p className="mb-4">
+              <strong>User ID:</strong> {userInfo.sub || "N/A"}
+            </p>
+            <button
+              onClick={handleLogout}
+              className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              Logout
+            </button>
+          </div>
+        ) : (
+          // --- Logged Out View ---
+          <div className="flex flex-col items-center gap-4">
+            <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
+              <li className="mb-2 tracking-[-.01em]">You are not logged in.</li>
+              <li className="tracking-[-.01em]">
+                Click the login button to authenticate.
+              </li>
+            </ol>
+
+            <div className="flex gap-4 items-center flex-col sm:flex-row">
+              <button
+                onClick={handleLogin}
+                className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
+              >
+                Login via Any-Login SSO
+              </button>
+            </div>
+          </div>
+        )}
       </main>
+
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+        <span className="text-sm text-gray-500">
+          Any-Me - Cross-domain testing app
+        </span>
       </footer>
     </div>
   );
