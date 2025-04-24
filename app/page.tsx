@@ -3,13 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { UserInfo } from "./types/auth";
-import {
-  getToken,
-  clearToken,
-  fetchUserInfo,
-  redirectToLogin,
-  logout,
-} from "./utils/authClient";
+import { fetchUserInfo, redirectToLogin, logout } from "./utils/authClient";
 
 export default function Home() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -20,27 +14,23 @@ export default function Home() {
     const checkAuth = async () => {
       setIsLoading(true);
       setError(null);
-      const token = getToken();
-
-      if (token) {
-        try {
-          console.log("Token found, fetching user info...");
-          const data = await fetchUserInfo(token);
-          setUserInfo(data);
-        } catch (err) {
-          console.error("Failed to fetch user info:", err);
+      try {
+        console.log("Checking auth status by fetching user info...");
+        const data = await fetchUserInfo();
+        setUserInfo(data);
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        if (
+          !(err instanceof Error && err.message.includes("Not authenticated"))
+        ) {
           setError(
             err instanceof Error ? err.message : "Could not load user data."
           );
-          // Token might be invalid/expired, clear it
-          clearToken();
-          setUserInfo(null);
         }
-      } else {
-        console.log("No token found.");
         setUserInfo(null);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     checkAuth();
@@ -48,10 +38,10 @@ export default function Home() {
 
   const handleLogout = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       await logout();
       setUserInfo(null);
-      setError(null); // Clear any previous errors on logout
     } catch (err) {
       console.error("Logout error:", err);
       setError("Logout failed. Please try again.");

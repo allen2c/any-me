@@ -1,48 +1,15 @@
 // Token management and authentication utilities
 import { UserInfo } from "../types/auth";
 
-const TOKEN_STORAGE_KEY = "anyMeAuthToken";
 const ANY_LOGIN_BASE_URL = "http://localhost:3000"; // Base URL for any-login
 
-export function storeToken(token: string): void {
-  try {
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  } catch (error) {
-    console.error("Error storing token:", error);
-  }
-}
-
-export function getToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
-  } catch (error) {
-    console.error("Error retrieving token:", error);
-    return null;
-  }
-}
-
-export function clearToken(): void {
-  try {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-  } catch (error) {
-    console.error("Error clearing token:", error);
-  }
-}
-
-export async function fetchUserInfo(token: string): Promise<UserInfo> {
-  const response = await fetch(
-    `${ANY_LOGIN_BASE_URL}/api/auth/oauth2/userinfo`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
+export async function fetchUserInfo(): Promise<UserInfo> {
+  // Call the new local API route in any-me
+  const response = await fetch("/api/me");
 
   if (!response.ok) {
     if (response.status === 401) {
-      clearToken(); // Token likely invalid or expired
-      throw new Error("Session expired or invalid. Please log in again.");
+      throw new Error("Not authenticated. Please log in.");
     }
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
@@ -64,27 +31,17 @@ export function redirectToLogin(): void {
 }
 
 export async function logout(): Promise<void> {
-  const token = getToken();
-  if (token) {
-    // Optional: Attempt to revoke token on the server via any-login's proxy
-    try {
-      const formData = new URLSearchParams();
-      formData.append("token", token);
-      formData.append("token_type_hint", "access_token");
-
-      await fetch(`${ANY_LOGIN_BASE_URL}/api/auth/oauth2/revoke`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: formData,
-      });
-    } catch (err) {
-      console.warn(
-        "Failed to revoke token on server (might already be invalid):",
-        err
-      );
+  // Call the new local logout API route
+  try {
+    const response = await fetch("/api/logout", {
+      method: "POST",
+    });
+    if (!response.ok) {
+      console.warn("Logout API call failed:", response.statusText);
+      throw new Error("Logout failed");
     }
+  } catch (err) {
+    console.error("Error calling logout API:", err);
+    throw err;
   }
-  clearToken(); // Always clear local token
 }
